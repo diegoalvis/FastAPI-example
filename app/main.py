@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
+from .models import Item
+from .database import db
 
 app = FastAPI(
     title="FastAPI Example",
@@ -8,53 +9,34 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Pydantic models for request/response
-class Item(BaseModel):
-    id: Optional[int] = None
-    name: str
-    description: Optional[str] = None
-    price: float
-
-# In-memory storage
-items_db = []
-current_id = 1
-
 @app.get("/")
 async def root():
     return {"message": "Welcome to FastAPI Example"}
 
 @app.get("/items", response_model=List[Item])
 async def get_items():
-    return items_db
+    return db.get_all_items()
 
 @app.get("/items/{item_id}", response_model=Item)
 async def get_item(item_id: int):
-    item = next((item for item in items_db if item.id == item_id), None)
+    item = db.get_item(item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
 @app.post("/items", response_model=Item)
 async def create_item(item: Item):
-    global current_id
-    item.id = current_id
-    current_id += 1
-    items_db.append(item)
-    return item
+    return db.create_item(item)
 
 @app.put("/items/{item_id}", response_model=Item)
 async def update_item(item_id: int, item: Item):
-    index = next((i for i, x in enumerate(items_db) if x.id == item_id), None)
-    if index is None:
+    updated_item = db.update_item(item_id, item)
+    if updated_item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    item.id = item_id
-    items_db[index] = item
-    return item
+    return updated_item
 
 @app.delete("/items/{item_id}")
 async def delete_item(item_id: int):
-    index = next((i for i, x in enumerate(items_db) if x.id == item_id), None)
-    if index is None:
+    if not db.delete_item(item_id):
         raise HTTPException(status_code=404, detail="Item not found")
-    items_db.pop(index)
     return {"message": "Item deleted successfully"} 
